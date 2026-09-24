@@ -9,7 +9,7 @@ scan only networks you own or may test.
 ```bash
 git clone https://github.com/onononoo/netfun.git
 ```
-### cd C:/your/dir/to/netfun
+### cd ~/.netfun
 ```bash
 pip install -e .
 netfun update-oui
