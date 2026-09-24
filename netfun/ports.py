@@ -1,4 +1,4 @@
-"""TCP port checks and service banner grabbing."""
+"""port checks and banners."""
 
 import re
 import socket
@@ -15,16 +15,15 @@ EXTRA_NAMES = {8009: "castv2", 32400: "plex", 62078: "iphone-sync", 1883: "mqtt"
                8008: "http-alt", 9100: "jetdirect", 8443: "https-alt", 631: "ipp",
                5353: "mdns", 554: "rtsp", 5900: "vnc", 3389: "rdp"}
 
-# Ports whose exposure is worth a second look on a home network.
 RISKY_PORTS = {
-    21: "FTP sends credentials in plain text",
-    23: "Telnet sends everything in plain text",
-    445: "SMB file sharing; keep it off untrusted networks",
-    1883: "MQTT is often unauthenticated",
-    3389: "Remote Desktop is a frequent attack target",
-    5900: "VNC is often weakly protected",
-    3306: "Database exposed on the network",
-    5432: "Database exposed on the network",
+    21: "ftp, plaintext",
+    23: "telnet, plaintext",
+    445: "smb exposed",
+    1883: "mqtt, often no auth",
+    3389: "rdp exposed",
+    5900: "vnc exposed",
+    3306: "database exposed",
+    5432: "database exposed",
 }
 
 
@@ -63,7 +62,6 @@ def _tls_wrap(sock, ip):
 
 
 def grab_banner(ip, port, timeout=2.0):
-    """Return a short one-line description of what's listening on a port."""
     try:
         sock = socket.create_connection((ip, port), timeout=timeout)
     except OSError:

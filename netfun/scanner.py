@@ -1,4 +1,4 @@
-"""Scan orchestration: ties discovery, ports, vendors and classification together."""
+"""scan."""
 
 import concurrent.futures as cf
 import datetime
@@ -11,7 +11,6 @@ from . import classify, discovery, oui, ports as portmod, store
 
 def scan(network, ports=None, workers=128, ping_timeout=800, port_timeout=0.5,
          banners=True, quiet=False):
-    """Scan a network and return a result dict (JSON-serializable)."""
     ports = ports if ports is not None else portmod.COMMON_PORTS
     started = time.time()
 
@@ -21,13 +20,13 @@ def scan(network, ports=None, workers=128, ping_timeout=800, port_timeout=0.5,
 
     addrs = [str(h) for h in network.hosts()]
     ping_info = {}
-    log(f"[*] Ping sweep of {network} ({len(addrs)} addresses)...")
+    log(f"scanning {network}")
     with cf.ThreadPoolExecutor(workers) as ex:
         for ip, (up, ttl, rtt) in zip(addrs, ex.map(lambda a: discovery.ping(a, ping_timeout), addrs)):
             if up:
                 ping_info[ip] = (ttl, rtt)
 
-    # Hosts that block ICMP often still show up in the ARP cache after the sweep.
+    # arp catches hosts that drop ping
     arp = discovery.arp_table()
     alive = set(ping_info) | {ip for ip in arp if ipaddress.ip_address(ip) in network}
     me = discovery.local_ip()
@@ -36,9 +35,9 @@ def scan(network, ports=None, workers=128, ping_timeout=800, port_timeout=0.5,
     gateway = discovery.default_gateway()
     table = oui.load()
     if not table:
-        log("[!] No vendor database; run `netfun update-oui` for MAC vendor names.")
+        log("no vendor db, run: netfun update-oui")
     labels = store.load_labels()
-    log(f"[*] {len(alive)} live hosts. Resolving names and scanning {len(ports)} ports...")
+    log(f"{len(alive)} hosts, checking {len(ports)} ports")
 
     hosts = {}
     for ip in alive:
@@ -65,7 +64,7 @@ def scan(network, ports=None, workers=128, ping_timeout=800, port_timeout=0.5,
         if banners:
             pairs = [(ip, p) for ip in alive for p in hosts[ip]["ports"]]
             if pairs:
-                log(f"[*] Grabbing banners from {len(pairs)} open ports...")
+                log(f"banners: {len(pairs)}")
             bfuts = {ex.submit(portmod.grab_banner, ip, p, max(port_timeout, 2.0)): (ip, p)
                      for ip, p in pairs}
             for f in cf.as_completed(bfuts):

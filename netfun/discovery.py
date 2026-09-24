@@ -1,4 +1,4 @@
-"""Host discovery: local addressing, ping, ARP, gateway, and name resolution."""
+"""host discovery."""
 
 import ipaddress
 import platform
@@ -8,7 +8,7 @@ import struct
 import subprocess
 
 IS_WINDOWS = platform.system() == "Windows"
-_NO_WINDOW = 0x08000000 if IS_WINDOWS else 0  # CREATE_NO_WINDOW
+_NO_WINDOW = 0x08000000 if IS_WINDOWS else 0
 
 
 def _run(cmd, timeout=None):
@@ -17,10 +17,9 @@ def _run(cmd, timeout=None):
 
 
 def local_ip():
-    """Return the IP of the interface used for outbound traffic."""
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        s.connect(("8.8.8.8", 80))  # no packets are sent for UDP connect
+        s.connect(("8.8.8.8", 80))
         return s.getsockname()[0]
     finally:
         s.close()
@@ -31,7 +30,6 @@ def default_subnet():
 
 
 def ping(ip, timeout_ms=800):
-    """Return (alive, ttl, rtt_ms)."""
     if IS_WINDOWS:
         cmd = ["ping", "-n", "1", "-w", str(timeout_ms), ip]
     else:
@@ -41,7 +39,7 @@ def ping(ip, timeout_ms=800):
     except subprocess.TimeoutExpired:
         return False, None, None
     out = r.stdout.lower()
-    # Windows ping returns 0 on "Destination host unreachable"; check for TTL.
+    # windows returns 0 on unreachable
     ttl = re.search(r"ttl=(\d+)", out)
     if r.returncode != 0 or not ttl:
         return False, None, None
@@ -53,10 +51,10 @@ def os_from_ttl(ttl):
     if ttl is None:
         return ""
     if ttl <= 64:
-        return "Linux/Unix/macOS/iOS/Android"
+        return "unix-like"
     if ttl <= 128:
-        return "Windows"
-    return "Network device"
+        return "windows"
+    return "network"
 
 
 _ARP_RE = re.compile(r"(\d+\.\d+\.\d+\.\d+)\D+?([0-9a-fA-F]{1,2}(?:[:-][0-9a-fA-F]{1,2}){5})")
@@ -76,7 +74,6 @@ def parse_arp(text):
 
 
 def arp_table():
-    """Parse the OS ARP cache into {ip: mac}."""
     try:
         return parse_arp(_run(["arp", "-a"]).stdout)
     except (FileNotFoundError, OSError):
@@ -104,7 +101,7 @@ def reverse_dns(ip):
 
 
 def netbios_name(ip, timeout=1.0):
-    """Query NetBIOS name service (UDP 137) for a Windows/Samba machine name."""
+    # netbios, udp 137
     query = (b"\x13\x37\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00"
              b"\x20CKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\x00\x00\x21\x00\x01")
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
@@ -117,7 +114,7 @@ def netbios_name(ip, timeout=1.0):
     try:
         for i in range(data[56]):
             entry = data[57 + i * 18: 57 + i * 18 + 18]
-            if entry[15] == 0x00 and not entry[16] & 0x80:  # unique workstation name
+            if entry[15] == 0x00 and not entry[16] & 0x80:
                 return entry[:15].decode("ascii", "replace").strip()
     except IndexError:
         pass
@@ -125,7 +122,7 @@ def netbios_name(ip, timeout=1.0):
 
 
 def mdns_name(ip, timeout=1.0):
-    """Ask a host directly for its .local name via a unicast mDNS PTR query."""
+    # unicast mdns ptr, udp 5353
     rev = ".".join(reversed(ip.split("."))) + ".in-addr.arpa"
     qname = b"".join(bytes([len(p)]) + p.encode() for p in rev.split(".")) + b"\x00"
     packet = struct.pack(">HHHHHH", 0, 0, 1, 0, 0, 0) + qname + struct.pack(">HH", 12, 1)

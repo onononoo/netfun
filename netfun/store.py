@@ -1,4 +1,4 @@
-"""Scan history and user-assigned device labels, stored under ~/.netfun."""
+"""scan history and labels."""
 
 import glob
 import json
@@ -21,7 +21,7 @@ def list_scans():
 
 
 def load_scan(ref):
-    """Load a scan by path, or by history index (-1 = latest, -2 = previous...)."""
+    # path, or history index (-1 = latest)
     if isinstance(ref, str) and os.path.exists(ref):
         path = ref
     else:
@@ -29,7 +29,7 @@ def load_scan(ref):
         try:
             path = scans[int(ref)]
         except (ValueError, IndexError):
-            raise SystemExit(f"No scan matching {ref!r} ({len(scans)} in history).")
+            raise SystemExit(f"no scan: {ref}")
     with open(path, encoding="utf-8") as f:
         return json.load(f)
 
@@ -43,7 +43,6 @@ def load_labels():
 
 
 def set_label(key, name):
-    """Label a device by MAC (preferred; survives DHCP changes) or IP."""
     ensure_home()
     labels = load_labels()
     key = key.lower().replace("-", ":")

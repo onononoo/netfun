@@ -1,6 +1,3 @@
-"""netfun - a dependency-free toolkit for mapping and watching your local network.
-
-Only scan networks you own or are authorized to test.
-"""
+"""netfun: local network scanner. scan only networks you own or may test."""
 
 __version__ = "0.2.0"

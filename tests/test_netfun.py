@@ -29,9 +29,9 @@ class TestDiscovery(unittest.TestCase):
         self.assertEqual(discovery.parse_arp(text), {"10.0.0.5": "00:03:7f:c3:ee:9a"})
 
     def test_os_from_ttl(self):
-        self.assertEqual(discovery.os_from_ttl(64), "Linux/Unix/macOS/iOS/Android")
-        self.assertEqual(discovery.os_from_ttl(128), "Windows")
-        self.assertEqual(discovery.os_from_ttl(255), "Network device")
+        self.assertEqual(discovery.os_from_ttl(64), "unix-like")
+        self.assertEqual(discovery.os_from_ttl(128), "windows")
+        self.assertEqual(discovery.os_from_ttl(255), "network")
         self.assertEqual(discovery.os_from_ttl(None), "")
 
     def test_parse_ptr_answer(self):
@@ -46,18 +46,18 @@ class TestOui(unittest.TestCase):
     def test_vendor(self):
         table = {"F02F74": "Acme Corp"}
         self.assertEqual(oui.vendor("f0:2f:74:2b:25:b0", table), "Acme Corp")
-        self.assertEqual(oui.vendor("f2:2f:74:2b:25:b0", table), "(private/random MAC)")
+        self.assertEqual(oui.vendor("f2:2f:74:2b:25:b0", table), "private mac")
         self.assertEqual(oui.vendor("", table), "")
 
 
 class TestClassify(unittest.TestCase):
     def test_rules(self):
         base = {"vendor": "", "services": {}}
-        self.assertEqual(classify.classify({**base, "gateway": True, "ports": []}), "Router / gateway")
-        self.assertEqual(classify.classify({**base, "ports": [9100]}), "Printer")
-        self.assertEqual(classify.classify({**base, "ports": [62078]}), "iPhone / iPad")
+        self.assertEqual(classify.classify({**base, "gateway": True, "ports": []}), "router")
+        self.assertEqual(classify.classify({**base, "ports": [9100]}), "printer")
+        self.assertEqual(classify.classify({**base, "ports": [62078]}), "iphone/ipad")
         self.assertEqual(classify.classify({**base, "ports": [], "vendor": "Raspberry Pi Trading"}),
-                         "Raspberry Pi")
+                         "raspberry pi")
 
 
 class TestDiff(unittest.TestCase):

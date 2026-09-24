@@ -1,52 +1,40 @@
 # netfun
 
-A dependency-free Python toolkit for mapping and watching your local network.
-Finds every device, names it, identifies its maker, checks common ports, and tells you
-when something new shows up.
+local network scanner. python 3.9+, no dependencies.
 
-> Only scan networks you own or are authorized to test.
+scan only networks you own or may test.
 
-## Install
+## install
 
 ```bash
 pip install -e .
-netfun update-oui     # one-time: download the IEEE MAC vendor list (~5 MB)
+netfun update-oui
 ```
 
-Or run without installing: `python -m netfun <command>`. Requires Python 3.9+.
+or `python -m netfun <command>`.
 
-## Commands
+## commands
 
-| Command | What it does |
-| --- | --- |
-| `netfun scan [CIDR]` | Scan the network (default: your /24), save to history, show changes since last scan |
-| `netfun scan --html map.html` | Also write an HTML report with a network map and filterable table (`--csv`, `--json` too) |
-| `netfun watch -i 300` | Rescan every 5 minutes and print new/gone/moved devices and port changes |
-| `netfun show [N]` | Print a saved scan (`-1` = latest) |
-| `netfun history` | List saved scans |
-| `netfun diff [OLD] [NEW]` | Compare two saved scans (default: previous vs latest) |
-| `netfun report [N] -f html` | Export a saved scan as HTML, CSV or JSON |
-| `netfun ports HOST -p 1-65535` | Deep port scan of one host with banners |
-| `netfun label MAC "Name"` | Give a device a friendly name (shown in scans; omit name to remove) |
-| `netfun vendor MAC...` | Look up who made a MAC address |
-| `netfun wake MAC-or-label` | Send a Wake-on-LAN packet |
-| `netfun info` | Local IP, gateway, subnet, and netfun status |
+```
+scan [cidr]        scan and save. --html/--csv/--json file
+watch -i 300       rescan on an interval, print changes
+show [n]           print a saved scan (-1 = latest)
+history            list saved scans
+diff [old] [new]   compare two scans
+report [n] -f fmt  export html, csv, json
+ports host         port scan one host
+label mac name     name a device
+vendor mac         mac vendor lookup
+wake mac|label     wake-on-lan
+update-oui         download vendor db
+info               local network info
+```
 
-## How a scan works
+## data
 
-1. **Ping sweep** of every address, keeping each reply's TTL (a rough OS hint) and round-trip time.
-2. **ARP table** read, which catches devices that ignore ping.
-3. **Names** via reverse DNS, then unicast mDNS (`.local`), then NetBIOS.
-4. **MAC vendor** from the IEEE registry; randomized "private" MACs are flagged.
-5. **TCP ports** from a list of ~30 common services, then **banners** (HTTP server/title, SSH version, etc.).
-6. **Device guess** from ports, vendor and banners, plus **warnings** for risky services (Telnet, FTP, RDP, VNC, exposed databases...).
+`~/.netfun` (or `NETFUN_HOME`): `oui.csv`, `scans/`, `labels.json`.
 
-## Data
-
-Everything lives in `~/.netfun` (override with `NETFUN_HOME`):
-`oui.csv` (vendor DB), `scans/` (history as JSON), `labels.json`.
-
-## Tests
+## tests
 
 ```bash
 python -m unittest discover tests

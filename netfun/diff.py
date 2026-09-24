@@ -1,8 +1,7 @@
-"""Compare two scans: new/missing devices, IP changes, and port changes."""
+"""scan comparison."""
 
 
 def _key(h):
-    # MAC identifies a device across DHCP changes; fall back to IP.
     return h["mac"] or h["ip"]
 
 
@@ -27,21 +26,21 @@ def compare(old, new):
 
 def describe(h):
     name = h.get("label") or h.get("hostname") or h.get("device") or h.get("vendor") or ""
-    return f"{h['ip']} ({h['mac'] or 'no MAC'}){' ' + name if name else ''}"
+    return f"{h['ip']} {h['mac'] or '-'}{' ' + name if name else ''}"
 
 
 def format_changes(changes):
     lines = []
     for h in changes["new"]:
-        lines.append(f"+ NEW     {describe(h)}")
+        lines.append(f"new    {describe(h)}")
     for h in changes["gone"]:
-        lines.append(f"- GONE    {describe(h)}")
+        lines.append(f"gone   {describe(h)}")
     for oh, nh in changes["moved"]:
-        lines.append(f"~ MOVED   {describe(nh)}  (was {oh['ip']})")
+        lines.append(f"moved  {describe(nh)} from {oh['ip']}")
     for h, opened, closed in changes["ports"]:
         bits = [f"+{p}" for p in opened] + [f"-{p}" for p in closed]
-        lines.append(f"~ PORTS   {describe(h)}  {' '.join(bits)}")
-    return lines or ["No changes."]
+        lines.append(f"ports  {describe(h)} {' '.join(bits)}")
+    return lines or ["no changes"]
 
 
 def is_empty(changes):

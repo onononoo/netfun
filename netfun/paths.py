@@ -1,4 +1,4 @@
-"""Where netfun keeps its data (vendor DB, scan history, device labels)."""
+"""data locations."""
 
 import os
 

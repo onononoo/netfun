@@ -1,4 +1,4 @@
-"""Wake-on-LAN magic packets."""
+"""wake-on-lan."""
 
 import re
 import socket
@@ -7,7 +7,7 @@ import socket
 def magic_packet(mac):
     hexmac = re.sub(r"[^0-9a-fA-F]", "", mac)
     if len(hexmac) != 12:
-        raise ValueError(f"Invalid MAC address: {mac}")
+        raise ValueError(f"invalid mac: {mac}")
     return b"\xff" * 6 + bytes.fromhex(hexmac) * 16
 
 
