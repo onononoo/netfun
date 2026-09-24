@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "netfun"
+version = "0.2.0"
+description = "A dependency-free toolkit for mapping and watching your local network"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+
+[project.scripts]
+netfun = "netfun.cli:main"
+
+[tool.setuptools]
+packages = ["netfun"]

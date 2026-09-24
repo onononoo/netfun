@@ -23,3 +23,5 @@ cabal.project.local~
 .ghc.environment.*
 
 oui.csv
+netfun-report.*
+*.egg-info/
