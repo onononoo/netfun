@@ -6,10 +6,9 @@ scan only networks you own or may test.
 
 ## install
 
-cd into the netfun directory, then
->
-
 ```bash
+git clone https://github.com/onononoo/netfun.git
+cd ~/your/dir/to/netfun
 pip install -e .
 netfun update-oui
 ```
