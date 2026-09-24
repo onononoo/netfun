@@ -6,6 +6,9 @@ scan only networks you own or may test.
 
 ## install
 
+cd into the netfun directory, then
+>
+
 ```bash
 pip install -e .
 netfun update-oui
