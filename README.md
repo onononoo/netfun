@@ -17,7 +17,11 @@ or `python -m netfun <command>`.
 
 ```
 scan [cidr]        scan and save. --html/--csv/--json file
-watch -i 300       rescan on an interval, print changes
+watch -i 300       rescan on an interval, print changes. --new-only, --exec cmd
+devices            every device ever seen. --offline
+upnp               list upnp/ssdp devices with model names
+mon host           continuous ping, loss, jitter
+serve              local web view on 127.0.0.1:8765. -i 300 to rescan
 show [n]           print a saved scan (-1 = latest)
 history            list saved scans
 diff [old] [new]   compare two scans
@@ -32,7 +36,9 @@ info               local network info
 
 ## data
 
-`~/.netfun` (or `NETFUN_HOME`): `oui.csv`, `scans/`, `labels.json`.
+`~/.netfun` (or `NETFUN_HOME`): `oui.csv`, `scans/`, `labels.json`, `devices.json`.
+
+serve endpoints: `/`, `/devices`, `/api/latest`, `/api/devices`, `/api/history`.
 
 ## tests
 

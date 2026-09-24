@@ -4,10 +4,13 @@ import argparse
 import concurrent.futures as cf
 import datetime
 import ipaddress
+import os
+import statistics
+import subprocess
 import sys
 import time
 
-from . import __version__, diff, discovery, oui, report, store, wol
+from . import __version__, diff, discovery, inventory, oui, report, serve, ssdp, store, wol
 from .ports import COMMON_PORTS, grab_banner, parse_ports, port_open, service_name
 from .scanner import scan
 
@@ -37,13 +40,15 @@ def _add_scan_opts(p):
     p.add_argument("--ping-timeout", type=int, default=800, help="ms")
     p.add_argument("--port-timeout", type=float, default=0.5, help="seconds")
     p.add_argument("--no-banners", action="store_true")
+    p.add_argument("--no-upnp", action="store_true")
 
 
 def _do_scan(args, quiet=False):
     return scan(_network(args.network),
                 ports=parse_ports(args.ports) if args.ports else COMMON_PORTS,
                 workers=args.workers, ping_timeout=args.ping_timeout,
-                port_timeout=args.port_timeout, banners=not args.no_banners, quiet=quiet)
+                port_timeout=args.port_timeout, banners=not args.no_banners,
+                upnp=not args.no_upnp, quiet=quiet)
 
 
 def cmd_scan(args):
@@ -52,6 +57,7 @@ def cmd_scan(args):
     if not args.no_save:
         prev = store.list_scans()
         print(f"saved {store.save_scan(result)}")
+        inventory.update(result)
         if prev:
             old = store.load_scan(prev[-1])
             if old["network"] == result["network"]:
@@ -101,13 +107,21 @@ def cmd_watch(args):
             now = datetime.datetime.now().strftime("%H:%M:%S")
             if last and last["network"] == result["network"]:
                 changes = diff.compare(last, result)
-                for line in diff.format_changes(changes):
+                if args.new_only:
+                    changes = {**changes, "gone": [], "moved": [], "ports": []}
+                lines = diff.format_changes(changes)
+                for line in lines:
                     print(f"{now} {line}", flush=True)
-                if args.beep and not diff.is_empty(changes):
-                    print("\a", end="", flush=True)
+                if not diff.is_empty(changes):
+                    if args.beep:
+                        print("\a", end="", flush=True)
+                    if args.exec:
+                        env = {**os.environ, "NETFUN_CHANGES": "\n".join(lines)}
+                        subprocess.run(args.exec, shell=True, env=env)
             else:
                 print(f"{now} {len(result['hosts'])} hosts", flush=True)
             store.save_scan(result)
+            inventory.update(result)
             last = result
             time.sleep(args.interval)
     except KeyboardInterrupt:
@@ -122,6 +136,66 @@ def cmd_ports(args):
     for p in opened:
         print(f"{p:>5}/tcp {service_name(p):<14} {banners[p]}")
     print(f"{len(opened)}/{len(ports)} open")
+
+
+def cmd_devices(args):
+    inv = inventory.load()
+    scans = store.list_scans()
+    latest = store.load_scan(scans[-1])["timestamp"] if scans else ""
+    rows = sorted(inv.items(), key=lambda kv: kv[1].get("last_seen", ""), reverse=True)
+    print(f"{'ip':<16}{'':<4}{'mac':<18} {'vendor':<22} {'name':<22} {'type':<14} {'first':<11} seen")
+    for key, d in rows:
+        up = d.get("last_seen") == latest
+        if args.offline and up:
+            continue
+        name = d.get("upnp_name") or d.get("hostname") or "-"
+        print(f"{d.get('ip', ''):<16}{'up' if up else '':<4}{d.get('mac') or '-':<18} "
+              f"{d.get('vendor', '-')[:21]:<22} {name[:21]:<22} {d.get('device', '-')[:13]:<14} "
+              f"{d.get('first_seen', '')[:10]:<11} {d.get('seen', 0)}")
+    print(f"{len(rows)} known")
+
+
+def cmd_mon(args):
+    rtts, sent = [], 0
+    try:
+        while args.count == 0 or sent < args.count:
+            sent += 1
+            up, ttl, rtt = discovery.ping(args.host, args.timeout)
+            now = datetime.datetime.now().strftime("%H:%M:%S")
+            if up:
+                rtts.append(rtt or 0.0)
+                print(f"{now} {args.host} {rtt}ms ttl={ttl}", flush=True)
+            else:
+                print(f"{now} {args.host} timeout", flush=True)
+            time.sleep(args.interval)
+    except KeyboardInterrupt:
+        pass
+    loss = 100 * (sent - len(rtts)) / max(sent, 1)
+    print(f"sent {sent}, lost {sent - len(rtts)} ({loss:.0f}%)")
+    if rtts:
+        jitter = statistics.pstdev(rtts)
+        print(f"min {min(rtts)}ms, avg {statistics.mean(rtts):.1f}ms, max {max(rtts)}ms, jitter {jitter:.1f}ms")
+
+
+def cmd_upnp(args):
+    found = ssdp.discover(args.timeout, discovery.local_ip())
+    for ip in sorted(found, key=ipaddress.ip_address):
+        d = found[ip]
+        model = " ".join(x for x in (d.get("manufacturer"), d.get("model_name")) if x)
+        print(f"{ip:<16} {d.get('friendly_name', '-')[:30]:<31} {model[:40]}")
+        if args.verbose:
+            for k in ("device_type", "server", "location"):
+                if d.get(k):
+                    print(f"{'':<16} {k}: {d[k]}")
+    print(f"{len(found)} devices")
+
+
+def cmd_serve(args):
+    rescan = None
+    if args.interval:
+        net = _network(args.network)
+        rescan = lambda: scan(net, quiet=True)
+    serve.run(args.host, args.port, rescan, args.interval)
 
 
 def cmd_label(args):
@@ -178,6 +252,8 @@ def build_parser():
     _add_scan_opts(p)
     p.add_argument("-i", "--interval", type=int, default=300, help="seconds")
     p.add_argument("--beep", action="store_true")
+    p.add_argument("--new-only", action="store_true", help="only report new devices")
+    p.add_argument("--exec", metavar="cmd", help="run on change, changes in $NETFUN_CHANGES")
 
     p = add("show", "print a saved scan", cmd_show)
     p.add_argument("scan", nargs="?", default="-1", help="index or file, default -1")
@@ -200,6 +276,25 @@ def build_parser():
     p.add_argument("-p", "--ports", default="1-1024")
     p.add_argument("-w", "--workers", type=int, default=256)
     p.add_argument("-t", "--timeout", type=float, default=0.5)
+
+    p = add("devices", "every device ever seen", cmd_devices)
+    p.add_argument("--offline", action="store_true", help="only devices missing from latest scan")
+
+    p = add("mon", "continuous ping with loss and jitter", cmd_mon)
+    p.add_argument("host")
+    p.add_argument("-i", "--interval", type=float, default=1.0, help="seconds")
+    p.add_argument("-c", "--count", type=int, default=0, help="0 = forever")
+    p.add_argument("-t", "--timeout", type=int, default=1000, help="ms")
+
+    p = add("upnp", "list upnp/ssdp devices", cmd_upnp)
+    p.add_argument("-t", "--timeout", type=float, default=3.0, help="seconds")
+    p.add_argument("-v", "--verbose", action="store_true")
+
+    p = add("serve", "local web view", cmd_serve)
+    p.add_argument("--host", default="127.0.0.1")
+    p.add_argument("--port", type=int, default=8765)
+    p.add_argument("-i", "--interval", type=int, default=0, help="rescan seconds, 0 = off")
+    p.add_argument("network", nargs="?", help="cidr for rescans")
 
     p = add("label", "name a device by mac or ip, no args lists", cmd_label)
     p.add_argument("key", nargs="?")

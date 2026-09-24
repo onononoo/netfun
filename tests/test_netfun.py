@@ -1,7 +1,7 @@
 import struct
 import unittest
 
-from netfun import classify, diff, discovery, oui, ports, wol
+from netfun import classify, diff, discovery, oui, ports, ssdp, wol
 
 
 class TestPorts(unittest.TestCase):
@@ -74,6 +74,25 @@ class TestDiff(unittest.TestCase):
         self.assertEqual([h["mac"] for h in c["gone"]], ["cc"])
         self.assertEqual(c["moved"][0][1]["ip"], "1.1.1.9")
         self.assertEqual(c["ports"][0][1:], ([22], []))
+
+
+class TestSsdp(unittest.TestCase):
+    def test_parse_response(self):
+        h = ssdp.parse_response("HTTP/1.1 200 OK\r\nLOCATION: http://1.2.3.4:80/d.xml\r\nSERVER: x\r\n\r\n")
+        self.assertEqual(h["location"], "http://1.2.3.4:80/d.xml")
+
+    def test_parse_description(self):
+        xml = ('<root xmlns="urn:schemas-upnp-org:device-1-0"><device>'
+               '<friendlyName>Family Room TV</friendlyName><manufacturer>Sony</manufacturer>'
+               '<modelName>BRAVIA</modelName></device></root>')
+        d = ssdp.parse_description(xml)
+        self.assertEqual(d, {"friendly_name": "Family Room TV", "manufacturer": "Sony",
+                             "model_name": "BRAVIA"})
+
+    def test_classify_tv(self):
+        h = {"ports": [8009], "vendor": "WNC Corporation", "services": {},
+             "upnp": {"model_name": "BRAVIA VH1"}}
+        self.assertEqual(classify.classify(h), "tv")
 
 
 class TestWol(unittest.TestCase):

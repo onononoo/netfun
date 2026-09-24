@@ -9,7 +9,7 @@ from .ports import RISKY_PORTS, service_name
 
 
 def display_name(h):
-    return h.get("label") or h.get("hostname") or ""
+    return h.get("label") or h.get("upnp", {}).get("friendly_name") or h.get("hostname") or ""
 
 
 def _tag(h):
@@ -96,7 +96,7 @@ margin-bottom:12px;font:inherit}
 """
 
 
-def write_html(result, path):
+def render_html(result):
     rows = []
     for h in result["hosts"]:
         ports = " ".join(
@@ -123,5 +123,9 @@ def write_html(result, path):
 document.getElementById('q').addEventListener('input',e=>{{const q=e.target.value.toLowerCase();
 for(const r of document.querySelectorAll('#t tbody tr'))r.style.display=r.textContent.toLowerCase().includes(q)?'':'none'}});
 </script></body></html>"""
+    return doc
+
+
+def write_html(result, path):
     with open(path, "w", encoding="utf-8") as f:
-        f.write(doc)
+        f.write(render_html(result))

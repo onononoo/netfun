@@ -31,17 +31,23 @@ def classify(host):
     ports = set(host.get("ports", []))
     vendor = (host.get("vendor") or "").lower()
     banners = " ".join(host.get("services", {}).values()).lower()
+    upnp = " ".join(host.get("upnp", {}).values()).lower()
 
     if host.get("gateway"):
         return "router"
-    if 9100 in ports or 631 in ports or "printer" in banners:
+    if 9100 in ports or 631 in ports or "printer" in banners or "printer" in upnp:
         return "printer"
     if 62078 in ports:
         return "iphone/ipad"
     if 8009 in ports:
-        if re.search(r"vizio|lg electronics|tcl|hisense|sony|philips|sharp", vendor):
+        if re.search(r"vizio|lg electronics|tcl|hisense|sony|philips|sharp", vendor) or \
+                re.search(r"bravia|\btv\b|television", upnp):
             return "tv"
         return "chromecast"
+    if "mediarenderer" in upnp and re.search(r"tv|television", upnp):
+        return "tv"
+    if "internetgatewaydevice" in upnp:
+        return "router"
     if 32400 in ports:
         return "plex"
     if 3389 in ports or {135, 445} <= ports:

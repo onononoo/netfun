@@ -6,11 +6,11 @@ import ipaddress
 import sys
 import time
 
-from . import classify, discovery, oui, ports as portmod, store
+from . import classify, discovery, oui, ports as portmod, ssdp, store
 
 
 def scan(network, ports=None, workers=128, ping_timeout=800, port_timeout=0.5,
-         banners=True, quiet=False):
+         banners=True, upnp=True, quiet=False):
     ports = ports if ports is not None else portmod.COMMON_PORTS
     started = time.time()
 
@@ -21,6 +21,8 @@ def scan(network, ports=None, workers=128, ping_timeout=800, port_timeout=0.5,
     addrs = [str(h) for h in network.hosts()]
     ping_info = {}
     log(f"scanning {network}")
+    upnp_pool = cf.ThreadPoolExecutor(1)
+    upnp_fut = upnp_pool.submit(ssdp.discover, 3.0, discovery.local_ip()) if upnp else None
     with cf.ThreadPoolExecutor(workers) as ex:
         for ip, (up, ttl, rtt) in zip(addrs, ex.map(lambda a: discovery.ping(a, ping_timeout), addrs)):
             if up:
@@ -28,7 +30,10 @@ def scan(network, ports=None, workers=128, ping_timeout=800, port_timeout=0.5,
 
     # arp catches hosts that drop ping
     arp = discovery.arp_table()
+    upnp_info = upnp_fut.result() if upnp_fut else {}
+    upnp_pool.shutdown()
     alive = set(ping_info) | {ip for ip in arp if ipaddress.ip_address(ip) in network}
+    alive |= {ip for ip in upnp_info if ipaddress.ip_address(ip) in network}
     me = discovery.local_ip()
     if ipaddress.ip_address(me) in network:
         alive.add(me)
@@ -47,7 +52,8 @@ def scan(network, ports=None, workers=128, ping_timeout=800, port_timeout=0.5,
             "ip": ip, "mac": mac, "vendor": oui.vendor(mac, table),
             "hostname": "", "label": labels.get(mac) or labels.get(ip, ""),
             "ttl": ttl, "rtt_ms": rtt, "os_guess": discovery.os_from_ttl(ttl),
-            "ports": [], "services": {}, "self": ip == me, "gateway": ip == gateway,
+            "ports": [], "services": {}, "upnp": upnp_info.get(ip, {}),
+            "self": ip == me, "gateway": ip == gateway,
         }
 
     with cf.ThreadPoolExecutor(workers) as ex:
@@ -55,7 +61,8 @@ def scan(network, ports=None, workers=128, ping_timeout=800, port_timeout=0.5,
         port_futs = {ex.submit(portmod.port_open, ip, p, port_timeout): (ip, p)
                      for ip in alive for p in ports}
         for f in cf.as_completed(name_futs):
-            hosts[name_futs[f]]["hostname"] = f.result()
+            h = hosts[name_futs[f]]
+            h["hostname"] = f.result()
         for f in cf.as_completed(port_futs):
             if f.result():
                 ip, p = port_futs[f]
